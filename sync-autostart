@@ -3,7 +3,7 @@
 set -euo pipefail
 
 readonly target_dir='/etc/xdg/autostart'
-readonly target_file="$target_dir/steam-silent.desktop"
+readonly target_file="$target_dir/steam.desktop"
 
 source_file=''
 for candidate in \
@@ -35,7 +35,7 @@ awk '
     } else if (match(cmd, /[[:space:]]%[A-Za-z]([[:space:]]*|$)/)) {
       prefix = substr(cmd, 1, RSTART - 1)
       suffix = substr(cmd, RSTART)
-      print "Exec=" prefix "-silent" suffix
+      print "Exec=" prefix " -silent" suffix
     } else {
       print "Exec=" cmd " -silent"
     }
@@ -49,10 +49,6 @@ awk '
     }
   }
 ' "$source_file" > "$tmp_file"
-
-if grep -q '^Name=' "$tmp_file"; then
-  sed -i 's/^Name=\(.*\)$/Name=\1 (Silent)/' "$tmp_file"
-fi
 
 if ! grep -q '^X-steam-autostart-silent-Managed=' "$tmp_file"; then
   printf '%s\n' 'X-steam-autostart-silent-Managed=true' >> "$tmp_file"

@@ -7,5 +7,5 @@ post_upgrade() {
 }
 
 post_remove() {
-  rm -f /etc/xdg/autostart/steam-silent.desktop
+  rm -f /etc/xdg/autostart/steam.desktop
 }

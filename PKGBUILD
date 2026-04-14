@@ -1,6 +1,6 @@
 pkgname=steam-autostart-silent
 pkgver=1.0.0
-pkgrel=1
+pkgrel=5
 pkgdesc="Maintain a Steam XDG autostart entry that launches with -silent"
 arch=('any')
 url="https://example.invalid/steam-autostart-silent"

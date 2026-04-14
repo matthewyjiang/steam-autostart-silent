@@ -2,6 +2,8 @@
 
 Arch Linux package that maintains a system-wide Steam XDG autostart entry and ensures Steam launches with the `-silent` flag.
 
+Repository: <https://github.com/matthewyjiang/steam-autostart-silent>
+
 ## What it does
 
 - Installs a sync helper at `/usr/lib/steam-autostart-silent/sync-autostart`

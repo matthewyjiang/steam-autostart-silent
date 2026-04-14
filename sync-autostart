@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly target_dir='/etc/xdg/autostart'
+readonly target_file="$target_dir/steam-silent.desktop"
+
+source_file=''
+for candidate in \
+  '/usr/share/applications/steam.desktop' \
+  '/usr/share/applications/steam-native.desktop'
+do
+  if [[ -r "$candidate" ]]; then
+    source_file="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$source_file" ]]; then
+  rm -f "$target_file"
+  exit 0
+fi
+
+mkdir -p "$target_dir"
+
+tmp_file="$(mktemp)"
+trap 'rm -f "$tmp_file"' EXIT
+
+awk '
+  BEGIN { saw_exec = 0 }
+  /^Exec=/ {
+    cmd = substr($0, 6)
+    if (cmd ~ /(^|[[:space:]])-silent([[:space:]]|$)/) {
+      print $0
+    } else if (match(cmd, /[[:space:]]%[A-Za-z]([[:space:]]*|$)/)) {
+      prefix = substr(cmd, 1, RSTART - 1)
+      suffix = substr(cmd, RSTART)
+      print "Exec=" prefix "-silent" suffix
+    } else {
+      print "Exec=" cmd " -silent"
+    }
+    saw_exec = 1
+    next
+  }
+  { print }
+  END {
+    if (!saw_exec) {
+      print "Exec=/usr/bin/steam -silent"
+    }
+  }
+' "$source_file" > "$tmp_file"
+
+if grep -q '^Name=' "$tmp_file"; then
+  sed -i 's/^Name=\(.*\)$/Name=\1 (Silent)/' "$tmp_file"
+fi
+
+if ! grep -q '^X-steam-autostart-silent-Managed=' "$tmp_file"; then
+  printf '%s\n' 'X-steam-autostart-silent-Managed=true' >> "$tmp_file"
+fi
+
+install -Dm644 "$tmp_file" "$target_file"

@@ -1,0 +1,11 @@
+post_install() {
+  /usr/lib/steam-autostart-silent/sync-autostart >/dev/null 2>&1 || true
+}
+
+post_upgrade() {
+  /usr/lib/steam-autostart-silent/sync-autostart >/dev/null 2>&1 || true
+}
+
+post_remove() {
+  rm -f /etc/xdg/autostart/steam-silent.desktop
+}

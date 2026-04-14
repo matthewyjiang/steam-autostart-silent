@@ -1,0 +1,11 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = steam
+
+[Action]
+Description = Refreshing Steam silent autostart desktop entry...
+When = PostTransaction
+Exec = /usr/lib/steam-autostart-silent/sync-autostart

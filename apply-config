@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+readonly config_dir='/etc/steam-autostart-silent'
+readonly config_file="$config_dir/config.conf"
+readonly sync_helper='/usr/lib/steam-autostart-silent/sync-autostart'
+
+input_file="${1:-}"
+
+if [[ -z "$input_file" || ! -r "$input_file" ]]; then
+  printf '%s\n' 'usage: apply-config CONFIG_FILE' >&2
+  exit 2
+fi
+
+enabled='true'
+silent='true'
+extra_flags=''
+source='auto'
+
+while IFS='=' read -r key value; do
+  [[ -z "$key" || "$key" == \#* ]] && continue
+  value="${value%\"}"
+  value="${value#\"}"
+  case "$key" in
+    ENABLED) enabled="$value" ;;
+    SILENT) silent="$value" ;;
+    EXTRA_FLAGS) extra_flags="$value" ;;
+    SOURCE) source="$value" ;;
+  esac
+done < "$input_file"
+
+case "$enabled" in true|false) ;; *) printf '%s\n' 'invalid ENABLED value' >&2; exit 2 ;; esac
+case "$silent" in true|false) ;; *) printf '%s\n' 'invalid SILENT value' >&2; exit 2 ;; esac
+case "$source" in auto|steam|steam-native) ;; *) printf '%s\n' 'invalid SOURCE value' >&2; exit 2 ;; esac
+
+if [[ "$extra_flags" == *$'\n'* || "$extra_flags" == *';'* || "$extra_flags" == *'|'* || "$extra_flags" == *'&'* || "$extra_flags" == *'`'* || "$extra_flags" == *'$('* ]]; then
+  printf '%s\n' 'invalid EXTRA_FLAGS value' >&2
+  exit 2
+fi
+
+tmp_file="$(mktemp)"
+trap 'rm -f "$tmp_file"' EXIT
+
+{
+  printf 'ENABLED=%s\n' "$enabled"
+  printf 'SILENT=%s\n' "$silent"
+  printf 'EXTRA_FLAGS="%s"\n' "$extra_flags"
+  printf 'SOURCE=%s\n' "$source"
+} > "$tmp_file"
+
+install -Dm644 "$tmp_file" "$config_file"
+"$sync_helper"

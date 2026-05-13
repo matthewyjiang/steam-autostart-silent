@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Steam Autostart
+Comment=Configure Steam silent autostart
+Exec=steam-autostart-silent-config
+Icon=steam
+Terminal=false
+Categories=Settings;System;
+Keywords=Steam;Autostart;Startup;

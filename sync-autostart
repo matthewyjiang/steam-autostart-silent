@@ -4,17 +4,52 @@ set -euo pipefail
 
 readonly target_dir='/etc/xdg/autostart'
 readonly target_file="$target_dir/steam.desktop"
+readonly config_file='/etc/steam-autostart-silent/config.conf'
+
+enabled='true'
+silent='true'
+extra_flags=''
+source='auto'
+
+if [[ -r "$config_file" ]]; then
+  while IFS='=' read -r key value; do
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    value="${value%\"}"
+    value="${value#\"}"
+    case "$key" in
+      ENABLED) enabled="$value" ;;
+      SILENT) silent="$value" ;;
+      EXTRA_FLAGS) extra_flags="$value" ;;
+      SOURCE) source="$value" ;;
+    esac
+  done < "$config_file"
+fi
+
+if [[ "$enabled" != 'true' ]]; then
+  rm -f "$target_file"
+  exit 0
+fi
 
 source_file=''
-for candidate in \
-  '/usr/share/applications/steam.desktop' \
-  '/usr/share/applications/steam-native.desktop'
-do
-  if [[ -r "$candidate" ]]; then
-    source_file="$candidate"
-    break
-  fi
-done
+case "$source" in
+  steam)
+    [[ -r '/usr/share/applications/steam.desktop' ]] && source_file='/usr/share/applications/steam.desktop'
+    ;;
+  steam-native)
+    [[ -r '/usr/share/applications/steam-native.desktop' ]] && source_file='/usr/share/applications/steam-native.desktop'
+    ;;
+  *)
+    for candidate in \
+      '/usr/share/applications/steam.desktop' \
+      '/usr/share/applications/steam-native.desktop'
+    do
+      if [[ -r "$candidate" ]]; then
+        source_file="$candidate"
+        break
+      fi
+    done
+    ;;
+esac
 
 if [[ -z "$source_file" ]]; then
   rm -f "$target_file"
@@ -26,32 +61,55 @@ mkdir -p "$target_dir"
 tmp_file="$(mktemp)"
 trap 'rm -f "$tmp_file"' EXIT
 
-awk '
+awk -v silent="$silent" -v extra_flags="$extra_flags" '
+  function trim(value) {
+    sub(/^[[:space:]]+/, "", value)
+    sub(/[[:space:]]+$/, "", value)
+    return value
+  }
+  function remove_managed_flags(cmd) {
+    gsub(/(^|[[:space:]])-silent([[:space:]]|$)/, " ", cmd)
+    gsub(/[[:space:]]+/, " ", cmd)
+    return trim(cmd)
+  }
+  function build_exec(cmd) {
+    cmd = remove_managed_flags(cmd)
+    additions = ""
+    if (silent == "true") {
+      additions = additions " -silent"
+    }
+    if (extra_flags != "") {
+      additions = additions " " extra_flags
+    }
+    additions = trim(additions)
+
+    if (additions == "") {
+      return cmd
+    }
+    if (match(cmd, /[[:space:]]%[A-Za-z]([[:space:]]*|$)/)) {
+      prefix = trim(substr(cmd, 1, RSTART - 1))
+      suffix = substr(cmd, RSTART)
+      return trim(prefix " " additions suffix)
+    }
+    return trim(cmd " " additions)
+  }
   BEGIN { saw_exec = 0 }
   /^Exec=/ {
     cmd = substr($0, 6)
-    if (cmd ~ /(^|[[:space:]])-silent([[:space:]]|$)/) {
-      print $0
-    } else if (match(cmd, /[[:space:]]%[A-Za-z]([[:space:]]*|$)/)) {
-      prefix = substr(cmd, 1, RSTART - 1)
-      suffix = substr(cmd, RSTART)
-      print "Exec=" prefix " -silent" suffix
-    } else {
-      print "Exec=" cmd " -silent"
-    }
+    print "Exec=" build_exec(cmd)
     saw_exec = 1
     next
   }
+  /^X-steam-autostart-silent-/ { next }
   { print }
   END {
     if (!saw_exec) {
-      print "Exec=/usr/bin/steam -silent"
+      print "Exec=" build_exec("/usr/bin/steam")
     }
   }
 ' "$source_file" > "$tmp_file"
 
-if ! grep -q '^X-steam-autostart-silent-Managed=' "$tmp_file"; then
-  printf '%s\n' 'X-steam-autostart-silent-Managed=true' >> "$tmp_file"
-fi
+printf '%s\n' 'X-steam-autostart-silent-Managed=true' >> "$tmp_file"
+printf 'X-steam-autostart-silent-Flags=%s\n' "$extra_flags" >> "$tmp_file"
 
 install -Dm644 "$tmp_file" "$target_file"

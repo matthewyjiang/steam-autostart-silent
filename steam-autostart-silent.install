@@ -1,11 +1,15 @@
 post_install() {
+  install -d -m 755 /etc/steam-autostart-silent
   /usr/lib/steam-autostart-silent/sync-autostart >/dev/null 2>&1 || true
 }
 
 post_upgrade() {
+  install -d -m 755 /etc/steam-autostart-silent
   /usr/lib/steam-autostart-silent/sync-autostart >/dev/null 2>&1 || true
 }
 
 post_remove() {
   rm -f /etc/xdg/autostart/steam.desktop
+  rm -f /etc/steam-autostart-silent/config.conf
+  rmdir /etc/steam-autostart-silent >/dev/null 2>&1 || true
 }

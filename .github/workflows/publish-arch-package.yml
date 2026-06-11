@@ -1,0 +1,58 @@
+name: publish-arch-package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-arch-package-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+
+    steps:
+      - name: Install build tools
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel git pacman-contrib sudo
+
+          useradd -m builder
+          printf 'builder ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+
+      - name: Checkout package repo
+        uses: actions/checkout@v4
+
+      - name: Build package
+        run: |
+          chown -R builder:builder "$PWD"
+          sudo -u builder makepkg -s --noconfirm
+
+      - name: Checkout mjiang-extras
+        uses: actions/checkout@v4
+        with:
+          repository: matthewyjiang/mjiang-extras
+          token: ${{ secrets.MJIANG_EXTRAS_PUSH_TOKEN }}
+          path: mjiang-extras
+
+      - name: Publish package files
+        run: |
+          set -euo pipefail
+
+          chmod +x mjiang-extras/scripts/publish-packages.sh
+          mjiang-extras/scripts/publish-packages.sh --repo-dir mjiang-extras ./*.pkg.tar.zst
+
+          cd mjiang-extras
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add x86_64/
+          git commit -m "Update steam-autostart-silent from ${{ github.repository }}" || exit 0
+          git push

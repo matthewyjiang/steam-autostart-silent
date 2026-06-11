@@ -34,7 +34,11 @@ jobs:
       - name: Build package
         run: |
           chown -R builder:builder "$PWD"
-          sudo -u builder makepkg -s --noconfirm
+          # The package has runtime-only dependencies, including steam from Arch's
+          # multilib repository, which is not enabled in the stock archlinux CI
+          # image. This package does not compile or need dependencies installed
+          # to produce the package archive, so skip dependency installation.
+          sudo -u builder makepkg --nodeps --noconfirm
 
       - name: Checkout mjiang-extras
         uses: actions/checkout@v4

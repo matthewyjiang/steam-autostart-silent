@@ -1,6 +1,6 @@
 # steam-autostart-silent
 
-Arch Linux package that maintains a system-wide Steam XDG autostart entry and ensures Steam launches with the `-silent` flag.
+Arch Linux and Fedora package that maintains a system-wide Steam XDG autostart entry and ensures Steam launches with the `-silent` flag.
 
 Repository: <https://github.com/matthewyjiang/steam-autostart-silent>
 
@@ -10,7 +10,7 @@ Repository: <https://github.com/matthewyjiang/steam-autostart-silent>
 - Installs a GTK 4 configuration app at `/usr/bin/steam-autostart-silent-config`
 - Creates/updates `/etc/xdg/autostart/steam.desktop` from the installed Steam desktop file
 - Ensures the autostart `Exec=` command includes `-silent` by default
-- Re-syncs automatically when the `steam` package is installed, upgraded, or removed (via pacman hook)
+- Re-syncs automatically when the `steam` package is installed, upgraded, or removed (via a pacman hook on Arch, RPM triggers on Fedora)
 
 ## Configure
 
@@ -41,8 +41,19 @@ SOURCE=auto
 
 ## Install
 
+### Arch Linux
+
 ```bash
 makepkg -si
+```
+
+### Fedora
+
+`steam` comes from [RPM Fusion](https://rpmfusion.org/Configuration) nonfree, so enable that first.
+
+```bash
+sudo dnf config-manager addrepo --from-repofile=https://repo.matthewyjiang.com/mjiang-extras.repo
+sudo dnf install steam-autostart-silent
 ```
 
 ## Verify
@@ -70,5 +81,6 @@ sudo /usr/lib/steam-autostart-silent/apply-config /path/to/config.conf
 ## Remove
 
 ```bash
-sudo pacman -Rns steam-autostart-silent
+sudo pacman -Rns steam-autostart-silent   # Arch
+sudo dnf remove steam-autostart-silent    # Fedora
 ```

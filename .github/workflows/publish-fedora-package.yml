@@ -1,0 +1,86 @@
+name: publish-fedora-package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+  # Build-only on PRs touching packaging, so spec breakage shows up before a tag.
+  pull_request:
+    paths:
+      - "*.spec"
+      - ".github/workflows/publish-fedora-package.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-fedora-package-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    # Oldest still-supported Fedora, same as mjiang-extras' signing workflow.
+    container: fedora:44
+
+    steps:
+      - name: Install build tools
+        run: dnf install -y --setopt=install_weak_deps=False rpm-build createrepo_c git
+
+      - name: Checkout package repo
+        uses: actions/checkout@v4
+
+      - name: Build RPM
+        run: |
+          set -euo pipefail
+          # The container runs as root but the workspace belongs to the runner user.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+          spec=steam-autostart-silent.spec
+          name_version="$(rpmspec -q --srpm --qf '%{NAME}-%{VERSION}' "$spec")"
+          topdir="$RUNNER_TEMP/rpmbuild"
+          mkdir -p "$topdir/SOURCES"
+          git archive --format=tar.gz --prefix="$name_version/" \
+            -o "$topdir/SOURCES/$name_version.tar.gz" HEAD
+          rpmbuild -bb --define "_topdir $topdir" "$spec"
+
+      - name: Show built RPMs
+        run: |
+          for rpm in "$RUNNER_TEMP"/rpmbuild/RPMS/*/*.rpm; do
+            rpm -qpil --requires "$rpm"
+          done
+
+      # Proves the Requires resolve on Fedora and the scriptlets run.
+      - name: Install built RPM
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          # steam lives in RPM Fusion nonfree; users need it enabled too.
+          dnf install -y "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm"
+          dnf install -y steam "$RUNNER_TEMP"/rpmbuild/RPMS/noarch/*.rpm
+          # %post / %triggerin ran sync-autostart against steam's desktop file.
+          grep -q -- '-silent' /etc/xdg/autostart/steam.desktop
+          dnf remove -y steam-autostart-silent
+          test ! -e /etc/xdg/autostart/steam.desktop
+
+      - name: Checkout mjiang-extras
+        if: github.event_name != 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          repository: matthewyjiang/mjiang-extras
+          token: ${{ secrets.MJIANG_EXTRAS_PUSH_TOKEN }}
+          path: mjiang-extras
+
+      - name: Publish RPMs
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          # The container runs as root; the checkout belongs to the runner user.
+          git config --global --add safe.directory "$PWD/mjiang-extras"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # push-rpms.sh retries races with other publishers and signing.
+          mjiang-extras/scripts/push-rpms.sh --repo-dir mjiang-extras \
+            --message "chore(fedora): update packages from ${{ github.repository }}" \
+            "$RUNNER_TEMP"/rpmbuild/RPMS/noarch/*.rpm

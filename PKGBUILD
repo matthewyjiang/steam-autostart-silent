@@ -1,4 +1,5 @@
 pkgname=steam-autostart-silent
+# Keep pkgver in sync with Version in steam-autostart-silent.spec.
 pkgver=1.1.0
 pkgrel=1
 pkgdesc="Maintain a Steam XDG autostart entry that launches with -silent"
